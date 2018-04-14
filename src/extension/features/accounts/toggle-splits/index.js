@@ -3,10 +3,20 @@ import { getCurrentRouteName } from 'toolkit/extension/utils/ynab';
 import { controllerLookup } from 'toolkit/extension/utils/ember';
 import { i10n } from 'toolkit/extension/utils/toolkit';
 
-function isNotSubTransaction(transaction) {
+const parentsCheckedState = {};
+
+function shouldShowTransaction(transaction) {
   const displayItemType = transaction.get('displayItemType');
-  return displayItemType !== ynab.constants.TransactionDisplayItemType.SubTransaction &&
-          displayItemType !== ynab.constants.TransactionDisplayItemType.ScheduledSubTransaction;
+  if (transaction.get('isSplit')) {
+    parentsCheckedState[transaction.entityId] = transaction.get('isChecked');
+  } else if (transaction.get('parentEntityId') && parentsCheckedState[transaction.get('parentEntityId')]) {
+    return true;
+  }
+
+  return (
+    displayItemType !== ynab.constants.TransactionDisplayItemType.SubTransaction &&
+    displayItemType !== ynab.constants.TransactionDisplayItemType.ScheduledSubTransaction
+  );
 }
 
 export class ToggleSplits extends Feature {
@@ -46,11 +56,11 @@ export class ToggleSplits extends Feature {
             this.notifyPropertyChange('contentResults');
           }, 25);
         }),
-        contentResults: Ember.computed(...ynabContentResults._dependentKeys, {
+        contentResults: Ember.computed(...ynabContentResults._dependentKeys, 'areCheckedCount', {
           get: function () {
             let contentResults = ynabContentResults._getter.apply(this);
             if (!this.get('toolkitShowSubTransactions')) {
-              contentResults = contentResults.filter(isNotSubTransaction);
+              contentResults = contentResults.filter(shouldShowTransaction);
             }
             return contentResults;
           },
