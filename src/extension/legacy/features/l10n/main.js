@@ -204,9 +204,6 @@
     for (var i = 0; i < rerenderClasses.length; i++) {
       ynabToolKit.shared.getEmberView($(rerenderClasses[i]).attr('id')).rerender();
     }
-
-    // When rerendering sidebar accounts lists are closing, open them.
-    // $('.nav-account-block').click();
   } else if (typeof Ember !== 'undefined') {
     Ember.run.next(poll, 250);
   } else {

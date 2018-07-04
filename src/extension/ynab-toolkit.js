@@ -4,6 +4,10 @@ import * as ynabUtils from 'toolkit/extension/utils/ynab';
 import * as emberUtils from 'toolkit/extension/utils/ember';
 import { isFeatureEnabled } from 'toolkit/extension/utils/feature';
 import { logToolkitError, withToolkitError } from 'toolkit/core/common/errors/with-toolkit-error';
+import { Localization } from '../core/localization';
+
+export let l10n;
+export let l10nFeature;
 
 export const TOOLKIT_LOADED_MESSAGE = 'ynab-toolkit-loaded';
 export const TOOLKIT_BOOTSTRAP_MESSAGE = 'ynab-toolkit-bootstrap';
@@ -41,6 +45,12 @@ export class YNABToolkit {
     features.forEach((Feature) => {
       this._featureInstances.push(new Feature());
     });
+  }
+
+  _initializeLocalization() {
+    this._localization = new Localization(ynabToolKit.options.Localization);
+    l10n = this._localization.l10n;
+    l10nFeature = this._localization.l10nFeature;
   }
 
   _invokeFeature = (featureName) => {
@@ -93,10 +103,11 @@ export class YNABToolkit {
         Rollbar.impl.instrumenter.deinstrumentConsole(); // eslint-disable-line
       }
 
+      this._initializeLocalization();
       this._setupErrorTracking();
       this._createFeatureInstances();
       this._removeMessageListener();
-      this._waitForUserSettings();
+      this._waitForYNAB();
     }
   }
 
@@ -124,7 +135,7 @@ export class YNABToolkit {
     });
   }
 
-  _waitForUserSettings() {
+  _waitForYNAB() {
     const self = this;
 
     (function poll() {
@@ -136,6 +147,9 @@ export class YNABToolkit {
 
         // inject the global css from each feature into the HEAD of the DOM
         self._applyGlobalCSS();
+
+        // setup localization of YNAB
+        self._localization.initializeEmberStrings();
 
         // Hook up listeners and then invoke any features that are ready to go.
         self._invokeFeatureInstances();

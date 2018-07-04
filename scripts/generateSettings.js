@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const defaultFeatures = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'))).defaultFeatures;
 
-const LEAGACY_SETTINGS_PROJECT_DIR = 'src/extension/legacy/features';
+const LEGACY_SETTINGS_PROJECT_DIR = 'src/extension/legacy/features';
 const NEW_SETTINGS_PROJECT_DIR = 'src/extension/features';
 const ALL_SETTINGS_OUTPUT = 'src/core/settings/settings.js';
 const SETTINGS_JSON = 'scripts/settings.json';
@@ -106,7 +106,7 @@ function run(callback) {
 
 function gatherLegacySettings() {
   return new Promise((resolve, reject) => {
-    glob(`${LEAGACY_SETTINGS_PROJECT_DIR}/**/settings.js*`, (error, files) => {
+    glob(`${LEGACY_SETTINGS_PROJECT_DIR}/**/settings.js*`, (error, files) => {
       if (error) return reject(error);
 
       let legacySettingsPromises = [];

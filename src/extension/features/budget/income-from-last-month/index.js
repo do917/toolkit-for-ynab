@@ -1,9 +1,14 @@
+import { l10nFeature } from 'toolkit/extension';
 import { Feature } from 'toolkit/extension/features/feature';
 import { isCurrentRouteBudgetPage, getSelectedMonth, getEntityManager } from 'toolkit/extension/utils/ynab';
 import { formatCurrency } from 'toolkit/extension/utils/currency';
-import { l10n, l10nMonth, MonthStyle } from 'toolkit/extension/utils/toolkit';
+import { l10nMonth, MonthStyle } from 'toolkit/extension/utils/toolkit';
 
 export class IncomeFromLastMonth extends Feature {
+  _l10n = l10nFeature('IncomeFromLastMonth', {
+    incomeIn: 'Income in'
+  });
+
   injectCSS() { return require('./index.css'); }
 
   shouldInvoke() { return isCurrentRouteBudgetPage(); }
@@ -56,7 +61,7 @@ export class IncomeFromLastMonth extends Feature {
       .text(formatCurrency(total));
 
     $('.budget-header-totals-details-names > .toolkit-income-from-last-month')
-      .text(`${l10n('toolkit.incomeIn', 'Income in')} ${previousMonthName}`);
+      .text(`${this._l10n.incomeIn} ${previousMonthName}`);
   }
 
   observe(changedNodes) {
