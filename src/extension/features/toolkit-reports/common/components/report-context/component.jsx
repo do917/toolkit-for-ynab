@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 import { ReportKeys, REPORT_TYPES } from 'toolkit-reports/common/constants/report-types';
+import { Goals } from 'toolkit-reports/pages/goals';
 import { IncomeVsExpense } from 'toolkit-reports/pages/income-vs-expense';
 import { NetWorth } from 'toolkit-reports/pages/net-worth';
 import { SpendingByPayee } from 'toolkit-reports/pages/spending-by-payee';
@@ -65,6 +66,14 @@ const REPORT_COMPONENTS = [
     filterSettings: {
       disableTrackingAccounts: true,
       includeTrackingAccounts: false,
+    },
+  },
+  {
+    component: Goals,
+    key: ReportKeys.Goals,
+    filterSettings: {
+      disableTrackingAccounts: true,
+      includeTrackingAccounts: true,
     },
   },
 ];
