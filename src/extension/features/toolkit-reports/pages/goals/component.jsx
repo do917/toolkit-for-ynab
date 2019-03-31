@@ -10,6 +10,8 @@ import { FiltersPropType } from 'toolkit-reports/common/components/report-contex
 export class GoalsComponent extends React.Component {
   _masterCategoriesCollection = Collections.masterCategoriesCollection;
   _subCategoriesCollection = Collections.subCategoriesCollection;
+  _monthlySubCategoryBudgetCalculationsCollection =
+    Collections.monthlySubCategoryBudgetCalculationsCollection;
 
   static propTypes = {
     filters: PropTypes.shape(FiltersPropType),
@@ -32,7 +34,6 @@ export class GoalsComponent extends React.Component {
   render() {
     return (
       <div className="tk-flex tk-flex-grow">
-        new skeleton steup
         <div className="tk-highcharts-report-container" id="tk-goals" />
       </div>
     );
@@ -40,9 +41,7 @@ export class GoalsComponent extends React.Component {
 
   _calculateData() {
     const { categoryFilterIds } = this.props.filters;
-    const categoriesWithGoals = new Map();
-    const categoriesList = [];
-    const garbage = [];
+    const categoriesWithGoals = [];
 
     this._masterCategoriesCollection.forEach(masterCategory => {
       const { entityId: masterCategoryId } = masterCategory;
@@ -73,93 +72,100 @@ export class GoalsComponent extends React.Component {
         }
 
         if (
+          !this.props.filters.categoryFilterIds.has(subCategoryId) &&
           subCategory.goalCreationMonth &&
-          (subCategory.goalType === 'TB' || subCategory.goalType === 'TBD')
+          subCategory.targetBalanceMonth &&
+          subCategory.goalType === 'TBD'
         ) {
-          categoriesList.push(subCategoryId);
-          garbage.push(subCategory);
-          categoriesWithGoals.set(
-            subCategory.name,
-            subCategory.goalCreationMonth && subCategory.goalCreationMonth.getMonth()
-          );
+          categoriesWithGoals.push(subCategory);
         }
       });
     });
 
-    this.setState({}, this._renderReport);
+    const firstGoalDate = moment.min(
+      categoriesWithGoals.map(category => category.goalCreationMonth.toUTCMoment())
+    );
+    const lastGoalDate = moment.max(
+      categoriesWithGoals.map(category => category.targetBalanceMonth.toUTCMoment())
+    );
+
+    const categoryNames = categoriesWithGoals.map(category => category.name);
+
+    const seriesStartBuffer = categoriesWithGoals.map(category => {
+      return category.goalCreationMonth.toUTCMoment().diff(firstGoalDate, 'months');
+    });
+    const goalsProgress = categoriesWithGoals.map(category => {
+      const categoryLookupPrefixCid = `mcbc/2019-04/${category.entityId}`;
+      const percentage =
+        (1 / 100) *
+        this._monthlySubCategoryBudgetCalculationsCollection.findItemByEntityId(
+          categoryLookupPrefixCid
+        ).goalPercentageComplete;
+
+      const totalGoalLengthInMonths = category.targetBalanceMonth
+        .toUTCMoment()
+        .diff(category.goalCreationMonth.toUTCMoment(), 'months');
+
+      const goalCompleted = percentage * totalGoalLengthInMonths;
+      const goalLeft = (1 - percentage) * totalGoalLengthInMonths;
+
+      return { goalCompleted, goalLeft };
+    });
+
+    this.setState(
+      {
+        reportData: {
+          categoryNames,
+          seriesStartBuffer,
+          goalCompleted: goalsProgress.map(categ => categ.goalCompleted),
+          goalLeft: goalsProgress.map(categ => categ.goalLeft),
+        },
+      },
+      this._renderReport
+    );
   }
 
   _renderReport = () => {
     const chart = new Highcharts.Chart({
-      credits: false,
       chart: {
-        height: '70%',
-        type: 'column',
-        inverted: true,
+        type: 'bar',
         renderTo: 'tk-goals',
       },
-
       title: {
-        text: 'Temperature variation by month',
+        text: 'Stacked bar chart',
       },
-
-      subtitle: {
-        text: 'Observed in Vik i Sogn, Norway, 2017',
-      },
-
       xAxis: {
-        categories: [
-          'Jan',
-          'Feb',
-          'Mar',
-          'Apr',
-          'May',
-          'Jun',
-          'Jul',
-          'Aug',
-          'Sep',
-          'Oct',
-          'Nov',
-          'Dec',
-        ],
+        categories: this.state.reportData.categoryNames,
       },
-
       yAxis: {
+        min: 0,
         title: {
-          text: 'Temperature ( °C )',
+          text: 'Total fruit consumption',
         },
       },
-
-      tooltip: {
-        valueSuffix: '°C',
+      legend: {
+        reversed: true,
       },
-
       plotOptions: {
-        columnrange: {
-          dataLabels: {
-            enabled: true,
-            format: '{y}°C',
-          },
+        series: {
+          stacking: 'normal',
         },
       },
-
       series: [
         {
-          name: 'Temperatures',
-          data: [
-            [-9.9, 10.3],
-            [-8.6, 8.5],
-            [-10.2, 11.8],
-            [-1.7, 12.2],
-            [-0.6, 23.1],
-            [3.7, 25.4],
-            [6.0, 26.2],
-            [6.7, 21.4],
-            [3.5, 19.5],
-            [-1.3, 16.0],
-            [-8.7, 9.4],
-            [-9.0, 8.6],
-          ],
+          name: 'progress left',
+          data: this.state.reportData.goalLeft,
+          color: '#D6D6D6',
+        },
+        {
+          name: 'progress',
+          data: this.state.reportData.goalCompleted,
+          color: '#5cb85c',
+        },
+        {
+          name: 'seriesStartBuffer',
+          color: 'rgba(0, 0, 0, 0)',
+          data: this.state.reportData.seriesStartBuffer,
         },
       ],
     });
