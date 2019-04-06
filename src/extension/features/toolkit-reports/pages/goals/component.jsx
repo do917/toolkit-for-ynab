@@ -2,10 +2,10 @@ import Highcharts from 'highcharts';
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 import { Collections } from 'toolkit/extension/utils/collections';
-import { formatCurrency } from 'toolkit/extension/utils/currency';
-import { localizedMonthAndYear, sortByGettableDate } from 'toolkit/extension/utils/date';
-import { l10n } from 'toolkit/extension/utils/toolkit';
+import { getToday } from 'toolkit/extension/utils/date';
 import { FiltersPropType } from 'toolkit-reports/common/components/report-context/component';
+
+import { RangeSlider } from './components/slider';
 
 export class GoalsComponent extends React.Component {
   _masterCategoriesCollection = Collections.masterCategoriesCollection;
@@ -19,7 +19,11 @@ export class GoalsComponent extends React.Component {
     allReportableTransactions: PropTypes.array.isRequired,
   };
 
-  state = {};
+  state = {
+    begGoalDate: getToday().toUTCMoment(),
+    endGoalDate: getToday().toUTCMoment(),
+    currGoalDate: getToday().toUTCMoment(),
+  };
 
   componentDidMount() {
     this._calculateData();
@@ -32,8 +36,10 @@ export class GoalsComponent extends React.Component {
   }
 
   render() {
+    const { begGoalDate, endGoalDate, currGoalDate } = this.state;
     return (
-      <div className="tk-flex tk-flex-grow">
+      <div className="tk-flex tk-flex-column tk-flex-grow">
+        <div className="tk-flex tk-justify-content-center">blah</div>
         <div className="tk-highcharts-report-container" id="tk-goals" />
       </div>
     );
@@ -61,10 +67,6 @@ export class GoalsComponent extends React.Component {
         return;
       }
 
-      const areAllSubCategoriesIgnored = subCategories.every(({ entityId }) =>
-        categoryFilterIds.has(entityId)
-      );
-
       subCategories.forEach(subCategory => {
         const { entityId: subCategoryId } = subCategory;
         if (subCategory.isTombstone || (subCategory.internalName && !isHiddenMasterCategory)) {
@@ -72,30 +74,79 @@ export class GoalsComponent extends React.Component {
         }
 
         if (
-          !this.props.filters.categoryFilterIds.has(subCategoryId) &&
+          !categoryFilterIds.has(subCategoryId) &&
           subCategory.goalCreationMonth &&
           subCategory.targetBalanceMonth &&
           subCategory.goalType === 'TBD'
         ) {
+          console.log('this should be here', subCategory);
           categoriesWithGoals.push(subCategory);
         }
       });
     });
 
-    const firstGoalDate = moment.min(
+    const begGoalDate = moment.min(
       categoriesWithGoals.map(category => category.goalCreationMonth.toUTCMoment())
     );
-    const lastGoalDate = moment.max(
+    const endGoalDate = moment.max(
       categoriesWithGoals.map(category => category.targetBalanceMonth.toUTCMoment())
     );
 
+    this.setState(
+      {
+        begGoalDate,
+        endGoalDate,
+        categoriesWithGoals,
+      },
+      this._renderReport
+    );
+
+    // const categoryNames = categoriesWithGoals.map(category => category.name);
+
+    // const seriesStartBuffer = categoriesWithGoals.map(category => {
+    //   return category.goalCreationMonth.toUTCMoment().diff(firstGoalDate, 'months');
+    // });
+    // const goalsProgress = categoriesWithGoals.map(category => {
+    //   const categoryLookupPrefixCid = `mcbc/2019-04/${category.entityId}`;
+    //   const percentage =
+    //     (1 / 100) *
+    //     this._monthlySubCategoryBudgetCalculationsCollection.findItemByEntityId(
+    //       categoryLookupPrefixCid
+    //     ).goalPercentageComplete;
+
+    //   const totalGoalLengthInMonths = category.targetBalanceMonth
+    //     .toUTCMoment()
+    //     .diff(category.goalCreationMonth.toUTCMoment(), 'months');
+
+    //   const goalCompleted = percentage * totalGoalLengthInMonths;
+    //   const goalLeft = (1 - percentage) * totalGoalLengthInMonths;
+
+    //   return { goalCompleted, goalLeft };
+    // });
+
+    // this.setState(
+    //   {
+    //     reportData: {
+    //       categoryNames,
+    //       seriesStartBuffer,
+    //       goalCompleted: goalsProgress.map(categ => categ.goalCompleted),
+    //       goalLeft: goalsProgress.map(categ => categ.goalLeft),
+    //     },
+    //   },
+    //   this._renderReport
+    // );
+  }
+
+  _renderReport = () => {
+    const { categoriesWithGoals, begGoalDate, endGoalDate } = this.state;
     const categoryNames = categoriesWithGoals.map(category => category.name);
 
     const seriesStartBuffer = categoriesWithGoals.map(category => {
-      return category.goalCreationMonth.toUTCMoment().diff(firstGoalDate, 'months');
+      return category.goalCreationMonth.toUTCMoment().diff(begGoalDate, 'months');
     });
+
     const goalsProgress = categoriesWithGoals.map(category => {
-      const categoryLookupPrefixCid = `mcbc/2019-04/${category.entityId}`;
+      const categoryLookupPrefixCid = `mcbc/2019-02/${category.entityId}`;
       const percentage =
         (1 / 100) *
         this._monthlySubCategoryBudgetCalculationsCollection.findItemByEntityId(
@@ -112,20 +163,9 @@ export class GoalsComponent extends React.Component {
       return { goalCompleted, goalLeft };
     });
 
-    this.setState(
-      {
-        reportData: {
-          categoryNames,
-          seriesStartBuffer,
-          goalCompleted: goalsProgress.map(categ => categ.goalCompleted),
-          goalLeft: goalsProgress.map(categ => categ.goalLeft),
-        },
-      },
-      this._renderReport
-    );
-  }
+    const goalCompleted = goalsProgress.map(categ => categ.goalCompleted);
+    const goalLeft = goalsProgress.map(categ => categ.goalLeft);
 
-  _renderReport = () => {
     const chart = new Highcharts.Chart({
       chart: {
         type: 'bar',
@@ -135,7 +175,7 @@ export class GoalsComponent extends React.Component {
         text: 'Stacked bar chart',
       },
       xAxis: {
-        categories: this.state.reportData.categoryNames,
+        categories: categoryNames,
       },
       yAxis: {
         min: 0,
@@ -154,22 +194,30 @@ export class GoalsComponent extends React.Component {
       series: [
         {
           name: 'progress left',
-          data: this.state.reportData.goalLeft,
+          data: goalLeft,
           color: '#D6D6D6',
         },
         {
           name: 'progress',
-          data: this.state.reportData.goalCompleted,
+          data: goalCompleted,
           color: '#5cb85c',
         },
         {
           name: 'seriesStartBuffer',
           color: 'rgba(0, 0, 0, 0)',
-          data: this.state.reportData.seriesStartBuffer,
+          data: seriesStartBuffer,
         },
       ],
     });
-
-    this.setState({ chart });
+    console.log('comon', categoryNames, seriesStartBuffer, goalCompleted, goalLeft);
+    this.setState({
+      chart,
+      reportData: {
+        categoryNames,
+        seriesStartBuffer,
+        goalCompleted,
+        goalLeft,
+      },
+    });
   };
 }
