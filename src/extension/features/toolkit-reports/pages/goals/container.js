@@ -6,7 +6,6 @@ function mapReportContextToProps(context) {
   return {
     filters: context.filters,
     filteredTransactions: context.filteredTransactions,
-    allReportableTransactions: context.allReportableTransactions,
   };
 }
 
