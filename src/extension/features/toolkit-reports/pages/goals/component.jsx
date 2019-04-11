@@ -2,7 +2,11 @@ import Highcharts from 'highcharts';
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 import { Collections } from 'toolkit/extension/utils/collections';
-import { getFirstMonthOfBudget, getToday } from 'toolkit/extension/utils/date';
+import {
+  getFirstMonthOfBudget,
+  getLastMonthOfBudget,
+  getToday,
+} from 'toolkit/extension/utils/date';
 import { FiltersPropType } from 'toolkit-reports/common/components/report-context/component';
 import { l10nMonth } from 'toolkit/extension/utils/toolkit';
 
@@ -21,23 +25,40 @@ export class GoalsComponent extends React.Component {
     return getFirstMonthOfBudget();
   }
 
+  get lastMonthOfBudget() {
+    return getLastMonthOfBudget();
+  }
+
   state = {
     selectedToMonth: getToday().getMonth(),
     selectedToYear: getToday().getYear(),
   };
 
   componentDidMount() {
-    this._calculateData();
+    this._setCategoriesData();
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     if (this.props.filteredTransactions !== prevProps.filteredTransactions) {
-      this._calculateData();
+      this._setCategoriesData();
+    } else if (
+      this.state.selectedToMonth !== prevState.selectedToMonth ||
+      this.state.selectedToYear !== prevState.selectedToYear
+    ) {
+      this._calculateChartData();
     }
   }
 
+  render() {
+    return (
+      <div className="tk-flex tk-flex-column tk-flex-grow">
+        <div className="tk-flex tk-justify-content-center">{this._renderSelector()}</div>
+        <div className="tk-highcharts-report-container" id="tk-goals" />
+      </div>
+    );
+  }
+
   _getEligibleMonths(selectedYear) {
-    const today = getToday();
     const date = new ynab.utilities.DateWithoutTime();
     date.startOfYear().setYear(selectedYear);
     const options = [];
@@ -45,11 +66,12 @@ export class GoalsComponent extends React.Component {
     // we need to convert `.getYear()` into a string.
     while (date.getYear().toString() === selectedYear.toString()) {
       options.push({
-        disabled: date.isAfter(today) || date.isBefore(this.firstMonthOfBudget),
+        disabled: date.isAfter(this.lastMonthOfBudget) || date.isBefore(this.firstMonthOfBudget),
         month: date.getMonth(),
       });
       date.addMonths(1);
     }
+
     return options;
   }
 
@@ -80,6 +102,14 @@ export class GoalsComponent extends React.Component {
     return options;
   }
 
+  _handleToMonthSelected = ({ currentTarget }) => {
+    this.setState({ selectedToMonth: currentTarget.value });
+  };
+
+  _handleToYearSelected = ({ currentTarget }) => {
+    this.setState({ selectedToYear: currentTarget.value });
+  };
+
   _renderSelector() {
     return (
       <div>
@@ -101,16 +131,7 @@ export class GoalsComponent extends React.Component {
     );
   }
 
-  render() {
-    return (
-      <div className="tk-flex tk-flex-column tk-flex-grow">
-        <div className="tk-flex tk-justify-content-center">{this._renderSelector()}</div>
-        <div className="tk-highcharts-report-container" id="tk-goals" />
-      </div>
-    );
-  }
-
-  _calculateData() {
+  _setCategoriesData() {
     const { categoryFilterIds } = this.props.filters;
     const categoriesWithGoals = [];
 
@@ -149,27 +170,27 @@ export class GoalsComponent extends React.Component {
       });
     });
 
-    this.setState(
-      {
-        categoriesWithGoals,
-      },
-      this._renderReport
-    );
+    this.setState({ categoriesWithGoals }, this._renderReport);
   }
 
-  _renderReport = () => {
-    const { categoriesWithGoals } = this.state;
+  _calculateChartData = () => {
+    const { categoriesWithGoals, chart, selectedToMonth, selectedToYear } = this.state;
+
+    if (!chart || !chart.hasRendered) {
+      return;
+    }
 
     const begGoalDate = moment.min(
       categoriesWithGoals.map(category => category.goalCreatedOn.toUTCMoment())
     );
 
-    const seriesStartBuffer = categoriesWithGoals.map(category => {
-      return category.goalCreatedOn.toUTCMoment().diff(begGoalDate, 'months');
-    });
+    const selectedDate = new ynab.utilities.DateWithoutTime()
+      .setMonth(selectedToMonth)
+      .setYear(selectedToYear)
+      .format('YYYY-MM');
 
     const goalsProgress = categoriesWithGoals.map(category => {
-      const categoryLookupPrefixCid = `mcbc/2019-02/${category.entityId}`;
+      const categoryLookupPrefixCid = `mcbc/${selectedDate}/${category.entityId}`;
       const percentage =
         (1 / 100) *
         this._monthlySubCategoryBudgetCalculationsCollection.findItemByEntityId(
@@ -186,9 +207,28 @@ export class GoalsComponent extends React.Component {
       return { goalCompleted, goalLeft };
     });
 
-    const categoryNames = categoriesWithGoals.map(category => category.name);
-    const goalCompleted = goalsProgress.map(categ => categ.goalCompleted);
     const goalLeft = goalsProgress.map(categ => categ.goalLeft);
+    const goalCompleted = goalsProgress.map(categ => categ.goalCompleted);
+    const seriesStartBuffer = categoriesWithGoals.map(category => {
+      return category.goalCreatedOn.toUTCMoment().diff(begGoalDate, 'months');
+    });
+
+    chart.series[0].setData(goalLeft);
+    chart.series[1].setData(goalCompleted);
+    chart.series[2].setData(seriesStartBuffer);
+  };
+
+  _renderReport = () => {
+    const { categoriesWithGoals } = this.state;
+
+    const begGoalDate = moment.min(
+      categoriesWithGoals.map(category => category.goalCreatedOn.toUTCMoment())
+    );
+
+    if (this.state.chart && this.state.chart.hasRendered) {
+      console.log('destroying chart');
+      this.state.chart.destroy();
+    }
 
     const chart = new Highcharts.Chart({
       chart: {
@@ -199,12 +239,25 @@ export class GoalsComponent extends React.Component {
         text: 'Stacked bar chart',
       },
       xAxis: {
-        categories: categoryNames,
+        categories: categoriesWithGoals.map(category => category.name),
       },
       yAxis: {
         min: 0,
         title: {
           text: 'Total fruit consumption',
+        },
+        tickInterval: 1,
+        labels: {
+          formatter: function() {
+            console.log('yo this is this', this, arguments);
+            console.log('yo this is beg date should be same', begGoalDate.format('MMM'));
+
+            return begGoalDate
+              .clone()
+              .add(this.value, 'months')
+              .format('MMM');
+            // return this.value + ' %';
+          },
         },
       },
       legend: {
@@ -218,24 +271,22 @@ export class GoalsComponent extends React.Component {
       series: [
         {
           name: 'progress left',
-          data: goalLeft,
+          data: [],
           color: '#D6D6D6',
         },
         {
           name: 'progress',
-          data: goalCompleted,
+          data: [],
           color: '#5cb85c',
         },
         {
           name: 'seriesStartBuffer',
           color: 'rgba(0, 0, 0, 0)',
-          data: seriesStartBuffer,
+          data: [],
         },
       ],
     });
 
-    this.setState({
-      chart,
-    });
+    this.setState({ chart }, this._calculateChartData);
   };
 }

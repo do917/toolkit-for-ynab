@@ -16,6 +16,12 @@ export function getFirstMonthOfBudget() {
     .clone();
 }
 
+export function getLastMonthOfBudget() {
+  return getEntityManager()
+    .getLastMonthForBudget()
+    .clone();
+}
+
 export function localizedMonthAndYear(date, style = MonthStyle.Long) {
   const month = date.getMonth();
   return `${l10nMonth(month, style)} ${date.getYear()}`;
