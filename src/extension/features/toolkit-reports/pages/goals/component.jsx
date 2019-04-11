@@ -18,16 +18,7 @@ export class GoalsComponent extends React.Component {
 
   static propTypes = {
     filters: PropTypes.shape(FiltersPropType),
-    filteredTransactions: PropTypes.array.isRequired,
   };
-
-  get firstMonthOfBudget() {
-    return getFirstMonthOfBudget();
-  }
-
-  get lastMonthOfBudget() {
-    return getLastMonthOfBudget();
-  }
 
   state = {
     selectedToMonth: getToday().getMonth(),
@@ -39,7 +30,7 @@ export class GoalsComponent extends React.Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    if (this.props.filteredTransactions !== prevProps.filteredTransactions) {
+    if (this.props.filters !== prevProps.filters) {
       this._setCategoriesData();
     } else if (
       this.state.selectedToMonth !== prevState.selectedToMonth ||
@@ -66,7 +57,7 @@ export class GoalsComponent extends React.Component {
     // we need to convert `.getYear()` into a string.
     while (date.getYear().toString() === selectedYear.toString()) {
       options.push({
-        disabled: date.isAfter(this.lastMonthOfBudget) || date.isBefore(this.firstMonthOfBudget),
+        disabled: date.isAfter(getLastMonthOfBudget()) || date.isBefore(getFirstMonthOfBudget()),
         month: date.getMonth(),
       });
       date.addMonths(1);
@@ -249,9 +240,6 @@ export class GoalsComponent extends React.Component {
         tickInterval: 1,
         labels: {
           formatter: function() {
-            console.log('yo this is this', this, arguments);
-            console.log('yo this is beg date should be same', begGoalDate.format('MMM'));
-
             return begGoalDate
               .clone()
               .add(this.value, 'months')

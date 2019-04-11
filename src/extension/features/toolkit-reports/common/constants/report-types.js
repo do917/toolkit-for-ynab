@@ -11,7 +11,7 @@ export const ReportNames = {
   SpendingByCategory: 'Spending By Category',
   SpendingByPayee: 'Spending By Payee',
   IncomeVsExpense: 'Income vs. Expense',
-  Goals: 'Goalz',
+  Goals: 'Goals',
 };
 
 export const REPORT_TYPES = [

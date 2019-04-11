@@ -5,7 +5,6 @@ import { GoalsComponent } from './component';
 function mapReportContextToProps(context) {
   return {
     filters: context.filters,
-    filteredTransactions: context.filteredTransactions,
   };
 }
 

@@ -86,7 +86,6 @@
     "highcharts": "7",
     "raven-js": "^3.25.2",
     "react": "^16.4.1",
-    "react-compound-slider": "^1.2.1",
     "react-dom": "^16.4.1"
   },
   "devDependencies": {
